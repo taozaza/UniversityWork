@@ -1,0 +1,55 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
+from tqdm import tqdm
+
+image_path = 'G:\\VSCodeProject\\irabu_zhang1.bmp'
+image = cv2.imread(image_path)
+image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) 
+
+training_coords = {
+    'class1': [(50, 50), (60, 60), (228, 101), (31,56), (50,250), (30,132), (150,150), (250,100), (50,100), (150,200)],
+    'class2': [(223, 250), (200, 300), (150,328), (289,315), (230,285), (148,335), (268,248), (200,250), (269,249), (148,340)],
+    'class3': [(325, 250), (280, 314), (399,76), (270,329), (325,335), (383,56), (435,181), (395,78), (372,22), (333,180)],
+    'class4': [(291, 250), (343, 114), (249,333), (270,294), (320,177), (355,22), (392,109), (343,239), (367,268), (421,266)],
+    'class5': [(300, 160), (310, 24), (312,136), (367,132), (410,120), (404,16), (310,26), (439,311), (433,216), (352,215)]
+}
+
+training_data = {}
+for cls, coords in training_coords.items():
+    for x, y in coords:
+        if x >= image.shape[1] or y >= image.shape[0]:
+            print(f"Invalid coordinates (x={x}, y={y}) for class {cls}")
+        else:
+            if cls not in training_data:
+                training_data[cls] = []
+            training_data[cls].append(image[y, x])
+
+training_data = {cls: np.array(data) for cls, data in training_data.items()}
+
+mean_vectors = {}
+cov_matrices = {}
+for cls, data in training_data.items():
+    mean_vectors[cls] = np.mean(data, axis=0)
+    cov_matrices[cls] = np.cov(data, rowvar=False)
+
+(height, width, _) = image.shape
+output_image = np.zeros((height, width), dtype=int)
+
+for y in tqdm(range(height), desc='Classifying pixels'):
+    for x in range(width):
+        pixel = image[y, x]
+        likelihoods = {}
+        for cls in training_data.keys():
+            dist = multivariate_normal(mean=mean_vectors[cls], cov=cov_matrices[cls], allow_singular=True)
+            likelihoods[cls] = dist.pdf(pixel)
+        
+        best_class = max(likelihoods, key=likelihoods.get)
+        class_index = list(training_data.keys()).index(best_class) + 1
+        output_image[y, x] = class_index
+
+plt.imshow(output_image, cmap='jet')
+plt.title('Classified Image')
+plt.colorbar()
+plt.show()
